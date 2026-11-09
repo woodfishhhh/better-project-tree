@@ -218,7 +218,7 @@ index 18818060..6addee49 100644
              worktreeDragState: runtime.worktreeDragState
 diff --git a/src/renderer/src/components/sidebar/worktree-list/viewport/WorktreeSidebarIndentGuides.tsx b/src/renderer/src/components/sidebar/worktree-list/viewport/WorktreeSidebarIndentGuides.tsx
 new file mode 100644
-index 00000000..b57bbd8d
+index 00000000..a6507bd5
 --- /dev/null
 +++ b/src/renderer/src/components/sidebar/worktree-list/viewport/WorktreeSidebarIndentGuides.tsx
 @@ -0,0 +1,64 @@
@@ -255,7 +255,7 @@ index 00000000..b57bbd8d
 +    const index = renderRows.findIndex((row) =>
 +      renderRowContainsWorktree(row, activeWorktreeId, activeWorkspaceExecutionHostId ?? undefined)
 +    )
-+    return new Set(index === -1 ? [] : ancestors[index])
++    return new Set(index === -1 ? [] : ancestors[index].map((ancestor) => ancestor.key))
 +  }, [renderRows, ancestors, activeWorktreeId, activeWorkspaceExecutionHostId])
 +  // Why: rows slide by preview offsets mid-drag; static guides would cut across them.
 +  if (hidden) {
@@ -288,10 +288,10 @@ index 00000000..b57bbd8d
 +}
 diff --git a/src/renderer/src/components/sidebar/worktree-list/viewport/indent-guides.test.ts b/src/renderer/src/components/sidebar/worktree-list/viewport/indent-guides.test.ts
 new file mode 100644
-index 00000000..d7a54c36
+index 00000000..92832b80
 --- /dev/null
 +++ b/src/renderer/src/components/sidebar/worktree-list/viewport/indent-guides.test.ts
-@@ -0,0 +1,160 @@
+@@ -0,0 +1,181 @@
 +import { describe, expect, it } from 'vitest'
 +import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 +import type { Repo } from '../../../../../../shared/repo-types'
@@ -378,6 +378,9 @@ index 00000000..d7a54c36
 +  card('solo-card')
 +]
 +
++const labels = (ancestors: ReturnType<typeof getIndentGuideAncestors>): string[][] =>
++  ancestors.map((row) => row.map(({ key, level }) => `${key}@${level}`))
++
 +const spans = (segments: ReturnType<typeof getIndentGuideSegments>): [string, number, number][] =>
 +  segments
 +    .map(({ key, top, bottom }): [string, number, number] => [key, top, bottom])
@@ -392,16 +395,34 @@ index 00000000..d7a54c36
 +
 +describe('getIndentGuideAncestors', () => {
 +  it('lists the headers each row sits under, outermost first', () => {
-+    expect(getIndentGuideAncestors(rows, 'repo')).toEqual([
++    expect(labels(getIndentGuideAncestors(rows, 'repo'))).toEqual([
 +      [],
-+      [':work'],
-+      [':work'],
-+      [':work', ':audio'],
-+      [':work', ':audio', ':asr'],
-+      [':work'],
-+      [':work', ':ana'],
++      [':work@0'],
++      [':work@0'],
++      [':work@0', ':audio@1'],
++      [':work@0', ':audio@1', ':asr@2'],
++      [':work@0'],
++      [':work@0', ':ana@1'],
 +      [],
-+      [':solo']
++      [':solo@0']
++    ])
++  })
++
++  it('keeps each guide at its header depth when a parent header is not shown', () => {
++    const orphanRows = [group('audio', 1), project('asr', 2), card('asr-card')]
++    expect(labels(getIndentGuideAncestors(orphanRows, 'repo'))).toEqual([
++      [],
++      [':audio@1'],
++      [':audio@1', ':asr@2']
++    ])
++    const segments = getIndentGuideSegments(
++      getIndentGuideAncestors(orphanRows, 'repo'),
++      measured(0, 2),
++      new Set()
++    )
++    expect(segments.map(({ key, level }) => `${key}@${level}`).sort()).toEqual([
++      ':asr@2',
++      ':audio@1'
 +    ])
 +  })
 +
@@ -429,7 +450,7 @@ index 00000000..d7a54c36
 +  })
 +
 +  it('marks the guides above the active row', () => {
-+    const active = new Set(ancestors[4])
++    const active = new Set(ancestors[4].map((ancestor) => ancestor.key))
 +    const segments = getIndentGuideSegments(ancestors, measured(0, 8), active)
 +    expect(
 +      segments
@@ -454,10 +475,10 @@ index 00000000..d7a54c36
 +})
 diff --git a/src/renderer/src/components/sidebar/worktree-list/viewport/indent-guides.ts b/src/renderer/src/components/sidebar/worktree-list/viewport/indent-guides.ts
 new file mode 100644
-index 00000000..04d0c57e
+index 00000000..4313fb37
 --- /dev/null
 +++ b/src/renderer/src/components/sidebar/worktree-list/viewport/indent-guides.ts
-@@ -0,0 +1,82 @@
+@@ -0,0 +1,85 @@
 +import type { WorktreeGroupBy } from '../../../../../../shared/sidebar-list/row-types'
 +import type { RenderRow } from '../listing/render-row'
 +
@@ -469,6 +490,8 @@ index 00000000..04d0c57e
 +  active: boolean
 +}
 +
++export type IndentGuideAncestor = { key: string; level: number }
++
 +type MeasuredRow = { index: number; start: number; end: number }
 +
 +// Why: notices keep their own fixed padding, so a guide would cross their text.
@@ -479,62 +502,63 @@ index 00000000..04d0c57e
 +])
 +
 +/**
-+ * The headers each row sits under, outermost first; one guide per entry. Only project grouping
-+ * is a tree: there every header (group, project, Pinned) parents the rows up to the next header at
-+ * its depth or shallower.
++ * The headers each row sits under, outermost first; one guide per entry, at its header's depth.
++ * Only project grouping is a tree: there every header (group, project, Pinned) parents the rows up
++ * to the next header at its depth or shallower.
 + */
 +export function getIndentGuideAncestors(
 +  rows: readonly RenderRow[],
 +  groupBy: WorktreeGroupBy
-+): string[][] {
++): IndentGuideAncestor[][] {
 +  if (groupBy !== 'repo') {
 +    return rows.map(() => [])
 +  }
-+  let open: { key: string; depth: number }[] = []
++  let open: IndentGuideAncestor[] = []
 +  return rows.map((row) => {
 +    if (row.type === 'host-header') {
 +      open = []
 +      return []
 +    }
 +    if (row.type === 'header') {
-+      const depth = row.projectGroupDepth ?? 0
-+      open = open.filter((header) => header.depth < depth)
-+      const ancestors = open.map((header) => header.key)
-+      open = [...open, { key: `${row.hostId ?? ''}:${row.key}`, depth }]
++      // Why: filtered host sections can omit a group's parents, so the level comes from the depth.
++      const level = row.projectGroupDepth ?? 0
++      open = open.filter((header) => header.level < level)
++      const ancestors = open
++      open = [...open, { key: `${row.hostId ?? ''}:${row.key}`, level }]
 +      return ancestors
 +    }
-+    return ROWS_WITHOUT_GUIDES.has(row.type) ? [] : open.map((header) => header.key)
++    return ROWS_WITHOUT_GUIDES.has(row.type) ? [] : open
 +  })
 +}
 +
 +/** Vertical runs for the measured rows: one per header per unbroken stretch of rows under it. */
 +export function getIndentGuideSegments(
-+  ancestorsByIndex: readonly (readonly string[])[],
++  ancestorsByIndex: readonly (readonly IndentGuideAncestor[])[],
 +  measuredRows: readonly MeasuredRow[],
 +  activeAncestors: ReadonlySet<string>
 +): IndentGuideSegment[] {
 +  const segments: IndentGuideSegment[] = []
-+  const open = new Map<number, IndentGuideSegment>()
++  const open = new Map<string, IndentGuideSegment>()
 +  let previousIndex: number | null = null
 +  for (const row of measuredRows) {
 +    const ancestors = ancestorsByIndex[row.index] ?? []
 +    // Why: a gap in indices means unmeasured rows between; never bridge it.
 +    const contiguous = previousIndex !== null && row.index === previousIndex + 1
-+    for (const [level, segment] of open) {
-+      if (!contiguous || ancestors[level] !== segment.key) {
++    for (const [key, segment] of open) {
++      if (!contiguous || !ancestors.some((ancestor) => ancestor.key === key)) {
 +        segments.push(segment)
-+        open.delete(level)
++        open.delete(key)
 +      }
 +    }
-+    ancestors.forEach((key, level) => {
-+      const segment = open.get(level)
++    for (const { key, level } of ancestors) {
++      const segment = open.get(key)
 +      if (segment) {
 +        segment.bottom = row.end
 +      } else {
 +        const active = activeAncestors.has(key)
-+        open.set(level, { key, level, top: row.start, bottom: row.end, active })
++        open.set(key, { key, level, top: row.start, bottom: row.end, active })
 +      }
-+    })
++    }
 +    previousIndex = row.index
 +  }
 +  segments.push(...open.values())
