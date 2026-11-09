@@ -44,6 +44,28 @@ Orca 会列出插件要申请的权限，确认后加上 `--approve <指纹>` �
 
 Orca 的插件 API 不能改左侧边栏，插件面板只能放在右侧边栏里。所以这个插件在右边画一棵新树，再给一个按钮把原来的左侧边栏收起来。
 
+## 改 Orca 自带的左侧边栏（macOS，可选）
+
+`native-sidebar/` 里有一个补丁，直接改 Orca 自带的左侧边栏：项目组每深一层缩进 18px（一个图标宽，原来只有 10px），每一层再从图标下方拉一条竖向辅助线，一直连到这一层的最后一行。
+
+```sh
+./native-sidebar/patch-orca.sh apply     # 打补丁，然后 Cmd+Q 退出 Orca 再打开
+./native-sidebar/patch-orca.sh status    # 看当前是否已打补丁
+./native-sidebar/patch-orca.sh restore   # 还原成原版
+```
+
+它的做法：
+
+1. 下载已安装版本对应的 Orca 源码（`v<版本号>` 标签），打上 `sidebar-indent-guides.patch`，只构建界面部分（renderer）。
+2. 第一次打补丁时，把原来的 `app.asar` 和 renderer 目录备份到 `~/Library/Application Support/orca-sidebar-patch/backup/`。
+3. 换掉 `Orca.app` 里的 renderer 目录，再用 `asar-renderer.cjs` 改写 `app.asar` 里这一个目录的文件索引。其他文件一个字节都不动。
+
+Orca 每次更新都会把补丁冲掉，重新运行一次 `apply` 就行。如果某个新版本改了侧边栏代码导致补丁打不上，脚本会直接报错退出，不会改动任何文件。
+
+需要 git、Node 24 和 corepack（pnpm）。第一次运行要装依赖，大约 3–5 分钟。
+
+这个补丁也提交到了 Orca 官方仓库（stablyai/orca），合并以后就不用再打了。
+
 ## 开发
 
 ```sh
