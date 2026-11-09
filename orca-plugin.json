@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "better-project-tree",
   "name": "Better Project Tree",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Your Orca projects and workspaces as a VS Code-style tree, with indent guides that make every level easy to follow.",
   "author": {
     "name": "woodfishhhh",

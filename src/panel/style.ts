@@ -2,9 +2,12 @@
 // Layout constants mirror VS Code's explorer: 22px rows, a 16px twistie, one guide per level.
 
 export const ROW_HEIGHT = 22
-export const INDENT = 14
 export const BASE_PADDING = 6
 const TWISTIE = 16
+const ICON = 16
+const ICON_GAP = 2
+/** Each level shifts right by one icon slot, so a child's chevron sits under its parent's icon. */
+export const INDENT = ICON + ICON_GAP
 
 /** Where the guide for nesting level `level` is drawn: under the centre of that level's chevron. */
 export function guideOffset(level: number): number {
@@ -82,10 +85,10 @@ body {
   top: 0;
   bottom: 0;
   width: 1px;
-  background: color-mix(in srgb, var(--orca-muted-foreground) 30%, transparent);
+  background: color-mix(in srgb, var(--orca-muted-foreground) 60%, transparent);
   pointer-events: none;
 }
-.guide.active { background: color-mix(in srgb, var(--orca-foreground) 70%, transparent); }
+.guide.active { background: var(--orca-foreground); }
 .twistie {
   flex: none;
   display: grid;
@@ -100,9 +103,9 @@ body {
   flex: none;
   display: grid;
   place-items: center;
-  width: 16px;
-  height: 16px;
-  margin: 0 6px 0 2px;
+  width: ${ICON}px;
+  height: ${ICON}px;
+  margin: 0 6px 0 ${ICON_GAP}px;
   color: var(--orca-muted-foreground);
 }
 .icon svg { width: 16px; height: 16px; }
