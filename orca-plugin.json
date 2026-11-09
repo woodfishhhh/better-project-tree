@@ -1,0 +1,37 @@
+{
+  "manifestVersion": 2,
+  "id": "better-project-tree",
+  "name": "Better Project Tree",
+  "version": "0.1.0",
+  "description": "Your Orca projects and workspaces as a VS Code-style tree, with indent guides that make every level easy to follow.",
+  "author": {
+    "name": "woodfishhhh",
+    "url": "https://github.com/woodfishhhh"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/woodfishhhh/better-project-tree",
+  "homepage": "https://github.com/woodfishhhh/better-project-tree",
+  "engines": {
+    "orca": ">=1.4.248"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "contributes": {
+    "panels": [
+      {
+        "id": "better-project-tree",
+        "title": "Better Project Tree",
+        "icon": "folder",
+        "entry": "src/panel/main.ts",
+        "ui": "html"
+      }
+    ]
+  },
+  "capabilities": [
+    { "kind": "workspace:read" },
+    { "kind": "workspace:write" },
+    { "kind": "storage:own" },
+    { "kind": "notifications:show" }
+  ]
+}
