@@ -1,5 +1,39 @@
+diff --git a/src/renderer/src/components/sidebar/worktree-list/rows/folder-row.tsx b/src/renderer/src/components/sidebar/worktree-list/rows/folder-row.tsx
+index e00ed2b9..d9d7a44d 100644
+--- a/src/renderer/src/components/sidebar/worktree-list/rows/folder-row.tsx
++++ b/src/renderer/src/components/sidebar/worktree-list/rows/folder-row.tsx
+@@ -19,7 +19,7 @@ import WorktreeCard from '../../workspace-card/surface/WorktreeCard'
+ import type { WorktreeGroupBy } from '../../../../../../shared/sidebar-list/row-types'
+ import { getVirtualRowTransform } from '../viewport/virtual-rows'
+ import {
+-  getFolderWorkspaceRowGeometry,
++  getWorktreeCardGeometry,
+   getLineageChildrenInlineStyle,
+   LINEAGE_CHILDREN_INLINE_OFFSET
+ } from './indentation'
+@@ -32,7 +32,6 @@ import { forwardOptionPressToCardSurface, getWorktreeOptionId } from './option-d
+ 
+ export type FolderWorkspaceRowContext = {
+   groupBy: WorktreeGroupBy
+-  newCardStyle: boolean
+   settings: AppState['settings']
+   activeWorktreeId: string | null
+   activeWorkspaceExecutionHostId: AppState['activeWorkspaceExecutionHostId']
+@@ -113,10 +112,8 @@ export function renderFolderWorkspaceOption(args: {
+     prCache: ctx.prCache,
+     settings: ctx.settings
+   })
+-  const { surfaceInset, cardContentIndent } = getFolderWorkspaceRowGeometry({
+-    experimentalNewWorktreeCardStyle: ctx.newCardStyle,
+-    isFolderBackedWorkspaceChild:
+-      ctx.groupBy === 'repo' && row.projectGroup.createdFrom === 'folder-scan',
++  // Folder workspaces already sit one level below their group, beside its projects.
++  const { surfaceInset, cardContentIndent } = getWorktreeCardGeometry({
+     isGrouped: ctx.groupBy !== 'none',
+     groupDepth: row.groupDepth,
+     lineageDepth: row.depth
 diff --git a/src/renderer/src/components/sidebar/worktree-list/rows/indentation.ts b/src/renderer/src/components/sidebar/worktree-list/rows/indentation.ts
-index 98a0a05a..3193f6dd 100644
+index 98a0a05a..652fb28e 100644
 --- a/src/renderer/src/components/sidebar/worktree-list/rows/indentation.ts
 +++ b/src/renderer/src/components/sidebar/worktree-list/rows/indentation.ts
 @@ -19,8 +19,11 @@ const GROUPED_CARD_TITLE_HEADER_LABEL_OFFSET = 3
@@ -26,8 +60,129 @@ index 98a0a05a..3193f6dd 100644
  export function getWorktreeCardContentIndent(args: {
    isGrouped: boolean
    groupDepth: number
+@@ -46,28 +53,15 @@ export function getWorktreeCardContentIndent(args: {
+     : lineageIndent
+ }
+ 
+-export function getFolderWorkspaceCardContentIndent(args: { groupDepth: number }): number {
+-  const parentGroupDepth = Math.max(0, clampDepth(args.groupDepth) - 1)
+-  // Why: folder workspaces are direct children of their folder group, so they align to its label.
+-  return getProjectGroupHeaderPaddingLeft(parentGroupDepth) + GROUPED_CARD_TITLE_HEADER_LABEL_OFFSET
+-}
+-
+-export function getFolderWorkspaceCardSurfaceInset(args: {
+-  isGrouped: boolean
++/** Rows in a project tree sit one level below their header, so their surface clears its guide. */
++export function getProjectTreeCardDepth(args: {
++  isProjectTree: boolean
+   groupDepth: number
+ }): number {
+-  const contentAnchor = getFolderWorkspaceCardContentIndent({ groupDepth: args.groupDepth })
+-  const genericSurfaceInset = getWorktreeCardSurfaceInset(args)
+-  const maxSurfaceInset =
+-    contentAnchor - WORKTREE_CARD_SURFACE_MARGIN - FLUSH_CARD_MIN_CONTENT_INSET
+-
+-  // Why: caps deep surfaces so flush-card margin plus minimum padding keep the anchor compact.
+-  return Math.min(genericSurfaceInset, Math.max(0, maxSurfaceInset))
++  return args.isProjectTree ? clampDepth(args.groupDepth) + 1 : args.groupDepth
+ }
+ 
+-export function getFolderWorkspaceRowGeometry(args: {
+-  experimentalNewWorktreeCardStyle: boolean
+-  isFolderBackedWorkspaceChild: boolean
++export function getWorktreeCardGeometry(args: {
+   isGrouped: boolean
+   groupDepth: number
+   lineageDepth: number
+@@ -75,45 +69,8 @@ export function getFolderWorkspaceRowGeometry(args: {
+   surfaceInset: number
+   cardContentIndent: number
+ } {
+-  if (args.experimentalNewWorktreeCardStyle && args.isFolderBackedWorkspaceChild) {
+-    // Why: standalone rows get no lineage wrapper offset, so align to the grouped repo-card anchor.
+-    const parentGroupDepth = Math.max(0, clampDepth(args.groupDepth) - 1)
+-    const contentAnchor = getWorktreeCardContentIndent({
+-      isGrouped: true,
+-      groupDepth: parentGroupDepth,
+-      lineageDepth: 0
+-    })
+-    const surfaceInset = getWorktreeCardSurfaceInset({
+-      isGrouped: true,
+-      groupDepth: parentGroupDepth
+-    })
+-
+-    return {
+-      surfaceInset,
+-      cardContentIndent: Math.max(0, contentAnchor - surfaceInset)
+-    }
+-  }
+-
+-  const contentIndent = args.isFolderBackedWorkspaceChild
+-    ? getFolderWorkspaceCardContentIndent({
+-        groupDepth: args.groupDepth
+-      })
+-    : getWorktreeCardContentIndent({
+-        isGrouped: args.isGrouped,
+-        groupDepth: args.groupDepth,
+-        lineageDepth: args.lineageDepth
+-      })
+-  // Why: legacy folder-scanned workspaces keep the compact anchor; other rows use the normal path.
+-  const surfaceInset = args.isFolderBackedWorkspaceChild
+-    ? getFolderWorkspaceCardSurfaceInset({
+-        isGrouped: true,
+-        groupDepth: args.groupDepth
+-      })
+-    : getWorktreeCardSurfaceInset({
+-        isGrouped: args.isGrouped,
+-        groupDepth: args.groupDepth
+-      })
+-
++  const contentIndent = getWorktreeCardContentIndent(args)
++  const surfaceInset = getWorktreeCardSurfaceInset(args)
+   return {
+     surfaceInset,
+     cardContentIndent: Math.max(0, contentIndent - surfaceInset)
+diff --git a/src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx b/src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx
+index c9dd3cd6..235975b6 100644
+--- a/src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx
++++ b/src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx
+@@ -12,8 +12,8 @@ import { PINNED_GROUP_KEY } from '../../../../../../shared/sidebar-list/group-ke
+ import type { WorktreeGroupBy } from '../../../../../../shared/sidebar-list/row-types'
+ import {
+   getLineageChildrenInlineStyle,
+-  getWorktreeCardContentIndent,
+-  getWorktreeCardSurfaceInset,
++  getProjectTreeCardDepth,
++  getWorktreeCardGeometry,
+   LINEAGE_CHILDREN_INLINE_OFFSET,
+   LINEAGE_NESTED_ROW_SURFACE_INSET
+ } from './indentation'
+@@ -71,17 +71,14 @@ function getWorktreeItemRowGeometry(
+     return { surfaceInset: LINEAGE_NESTED_ROW_SURFACE_INSET, cardContentIndent: 0 }
+   }
+ 
+-  const isGrouped = ctx.groupBy !== 'none'
+-  const paddingLeft = getWorktreeCardContentIndent({
+-    isGrouped,
+-    groupDepth: itemRow.groupDepth,
++  return getWorktreeCardGeometry({
++    isGrouped: ctx.groupBy !== 'none',
++    groupDepth: getProjectTreeCardDepth({
++      isProjectTree: ctx.groupBy === 'repo',
++      groupDepth: itemRow.groupDepth
++    }),
+     lineageDepth: itemRow.depth
+   })
+-  const surfaceInset = getWorktreeCardSurfaceInset({ isGrouped, groupDepth: itemRow.groupDepth })
+-  return {
+-    surfaceInset,
+-    cardContentIndent: Math.max(0, paddingLeft - surfaceInset)
+-  }
+ }
+ 
+ export function renderWorktreeItemRow(
 diff --git a/src/renderer/src/components/sidebar/worktree-list/viewport/VirtualizedWorktreeViewport.tsx b/src/renderer/src/components/sidebar/worktree-list/viewport/VirtualizedWorktreeViewport.tsx
-index 18818060..3af53d49 100644
+index 18818060..6addee49 100644
 --- a/src/renderer/src/components/sidebar/worktree-list/viewport/VirtualizedWorktreeViewport.tsx
 +++ b/src/renderer/src/components/sidebar/worktree-list/viewport/VirtualizedWorktreeViewport.tsx
 @@ -6,6 +6,7 @@ import { useTranslate } from '@/i18n/use-translate'
@@ -38,7 +193,15 @@ index 18818060..3af53d49 100644
  import { useWorktreeListScrollToTop } from './use-scroll-to-top'
  import { getActiveDescendantOptionId } from '../navigation/active-descendant-option'
  import { buildRenderableRows } from '../listing/renderable-rows'
-@@ -399,6 +400,12 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
+@@ -344,7 +345,6 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
+     measureVirtualRowElement,
+     settings,
+     projectActions,
+-    newCardStyle,
+     projectGroups,
+     session,
+     runtime,
+@@ -399,6 +399,14 @@ export const VirtualizedWorktreeViewport = React.memo(function VirtualizedWorktr
            className="relative w-full"
            style={{ height: `${virtualization.virtualizer.getTotalSize()}px` }}
          >
@@ -46,6 +209,8 @@ index 18818060..3af53d49 100644
 +            renderRows={renderRows}
 +            groupBy={groupBy}
 +            virtualItems={virtualItems}
++            activeWorktreeId={rowProps.activeWorktreeId}
++            activeWorkspaceExecutionHostId={rowProps.activeWorkspaceExecutionHostId ?? null}
 +            hidden={runtime.worktreeDragState.draggingWorktreeId !== null}
 +          />
            {renderWorktreeSidebarDropIndicators({
@@ -53,34 +218,50 @@ index 18818060..3af53d49 100644
              worktreeDragState: runtime.worktreeDragState
 diff --git a/src/renderer/src/components/sidebar/worktree-list/viewport/WorktreeSidebarIndentGuides.tsx b/src/renderer/src/components/sidebar/worktree-list/viewport/WorktreeSidebarIndentGuides.tsx
 new file mode 100644
-index 00000000..67f8f4fa
+index 00000000..b57bbd8d
 --- /dev/null
 +++ b/src/renderer/src/components/sidebar/worktree-list/viewport/WorktreeSidebarIndentGuides.tsx
-@@ -0,0 +1,43 @@
+@@ -0,0 +1,64 @@
 +import React, { useMemo } from 'react'
 +import type { VirtualItem } from '@tanstack/react-virtual'
++import { cn } from '@/lib/utils'
++import type { ExecutionHostId } from '../../../../../../shared/execution-host'
 +import type { WorktreeGroupBy } from '../../../../../../shared/sidebar-list/row-types'
 +import type { RenderRow } from '../listing/render-row'
++import { renderRowContainsWorktree } from '../navigation/render-row-lookup'
 +import { getIndentGuideOffset } from '../rows/indentation'
-+import { getIndentGuideLevels, getIndentGuideSegments } from './indent-guides'
++import { getIndentGuideAncestors, getIndentGuideSegments } from './indent-guides'
 +
 +export function WorktreeSidebarIndentGuides({
 +  renderRows,
 +  groupBy,
 +  virtualItems,
++  activeWorktreeId,
++  activeWorkspaceExecutionHostId,
 +  hidden
 +}: {
 +  renderRows: readonly RenderRow[]
 +  groupBy: WorktreeGroupBy
 +  virtualItems: readonly VirtualItem[]
++  activeWorktreeId: string | null
++  activeWorkspaceExecutionHostId: ExecutionHostId | null
 +  hidden: boolean
 +}): React.JSX.Element | null {
-+  const levels = useMemo(() => getIndentGuideLevels(renderRows, groupBy), [renderRows, groupBy])
++  const ancestors = useMemo(
++    () => getIndentGuideAncestors(renderRows, groupBy),
++    [renderRows, groupBy]
++  )
++  const activeAncestors = useMemo(() => {
++    const index = renderRows.findIndex((row) =>
++      renderRowContainsWorktree(row, activeWorktreeId, activeWorkspaceExecutionHostId ?? undefined)
++    )
++    return new Set(index === -1 ? [] : ancestors[index])
++  }, [renderRows, ancestors, activeWorktreeId, activeWorkspaceExecutionHostId])
 +  // Why: rows slide by preview offsets mid-drag; static guides would cut across them.
 +  if (hidden) {
 +    return null
 +  }
-+  const segments = getIndentGuideSegments(levels, virtualItems)
++  const segments = getIndentGuideSegments(ancestors, virtualItems, activeAncestors)
 +  if (segments.length === 0) {
 +    return null
 +  }
@@ -88,8 +269,13 @@ index 00000000..67f8f4fa
 +    <div aria-hidden="true" className="pointer-events-none absolute inset-0">
 +      {segments.map((segment) => (
 +        <div
-+          key={`${segment.level}:${segment.top}`}
-+          className="absolute w-px bg-worktree-sidebar-border"
++          key={`${segment.key}:${segment.top}`}
++          className={cn(
++            'absolute w-px',
++            segment.active
++              ? 'bg-worktree-sidebar-foreground/45'
++              : 'bg-worktree-sidebar-foreground/15'
++          )}
 +          style={{
 +            left: getIndentGuideOffset(segment.level),
 +            top: segment.top,
@@ -102,15 +288,16 @@ index 00000000..67f8f4fa
 +}
 diff --git a/src/renderer/src/components/sidebar/worktree-list/viewport/indent-guides.test.ts b/src/renderer/src/components/sidebar/worktree-list/viewport/indent-guides.test.ts
 new file mode 100644
-index 00000000..faa559ed
+index 00000000..d7a54c36
 --- /dev/null
 +++ b/src/renderer/src/components/sidebar/worktree-list/viewport/indent-guides.test.ts
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,160 @@
 +import { describe, expect, it } from 'vitest'
 +import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 +import type { Repo } from '../../../../../../shared/repo-types'
 +import type { RenderRow } from '../listing/render-row'
-+import { getIndentGuideLevels, getIndentGuideSegments } from './indent-guides'
++import { makeRepo, makeWorktree } from '../listing/worktree-list-lineage-card-test-fixtures'
++import { getIndentGuideAncestors, getIndentGuideSegments } from './indent-guides'
 +
 +const group = (key: string, depth: number): RenderRow => {
 +  const projectGroup: ProjectGroup = {
@@ -153,6 +340,17 @@ index 00000000..faa559ed
 +  }
 +}
 +const card = (key: string): RenderRow => ({
++  type: 'item',
++  rowKey: key,
++  sectionKey: 'section',
++  worktree: makeWorktree({ id: key, displayName: key, branch: key, sortOrder: 0, instanceId: key }),
++  repo: makeRepo(),
++  depth: 0,
++  groupDepth: 0,
++  isLastLineageChild: false,
++  lineageChildCount: 0
++})
++const pending = (key: string): RenderRow => ({
 +  type: 'pending-creation',
 +  key,
 +  creationId: key,
@@ -160,23 +358,30 @@ index 00000000..faa559ed
 +})
 +
 +// work/            group, depth 0
++//   folder-card    folder workspace of the group
 +//   audio/         group, depth 1
 +//     asr          project, depth 2
-+//       card
-+//   data-ana       project, depth 1
-+//     card
++//       asr-card
++//   ana            project, depth 1
++//     ana-card
 +// solo             ungrouped project
-+//   card
++//   solo-card
 +const rows = [
 +  group('work', 0),
++  card('folder-card'),
 +  group('audio', 1),
 +  project('asr', 2),
 +  card('asr-card'),
-+  project('data-ana', 1),
++  project('ana', 1),
 +  card('ana-card'),
 +  project('solo', 0),
 +  card('solo-card')
 +]
++
++const spans = (segments: ReturnType<typeof getIndentGuideSegments>): [string, number, number][] =>
++  segments
++    .map(({ key, top, bottom }): [string, number, number] => [key, top, bottom])
++    .sort((left, right) => left[1] - right[1] || left[0].localeCompare(right[0]))
 +
 +const measured = (from: number, to: number): { index: number; start: number; end: number }[] =>
 +  Array.from({ length: to - from + 1 }, (_, offset) => ({
@@ -185,116 +390,173 @@ index 00000000..faa559ed
 +    end: (from + offset + 1) * 10
 +  }))
 +
-+describe('getIndentGuideLevels', () => {
-+  it('gives each row the depth of the group header that owns it', () => {
-+    expect(getIndentGuideLevels(rows, 'repo')).toEqual([0, 1, 2, 2, 1, 1, 0, 0])
++describe('getIndentGuideAncestors', () => {
++  it('lists the headers each row sits under, outermost first', () => {
++    expect(getIndentGuideAncestors(rows, 'repo')).toEqual([
++      [],
++      [':work'],
++      [':work'],
++      [':work', ':audio'],
++      [':work', ':audio', ':asr'],
++      [':work'],
++      [':work', ':ana'],
++      [],
++      [':solo']
++    ])
 +  })
 +
-+  it('puts rows right under a group, such as folder workspaces, one level below it', () => {
-+    const folderRows = [group('work', 0), card('folder'), project('api', 1), card('api-card')]
-+    expect(getIndentGuideLevels(folderRows, 'repo')).toEqual([0, 1, 1, 1])
++  it('leaves notices without guides', () => {
++    expect(getIndentGuideAncestors([project('api', 0), pending('new')], 'repo')).toEqual([[], []])
 +  })
 +
 +  it('draws no guides outside project grouping', () => {
-+    expect(getIndentGuideLevels(rows, 'workspace-status')).toEqual([0, 0, 0, 0, 0, 0, 0, 0])
++    expect(getIndentGuideAncestors(rows, 'workspace-status').flat()).toEqual([])
 +  })
 +})
 +
 +describe('getIndentGuideSegments', () => {
-+  it('runs each group guide from below its header to its last nested row', () => {
-+    const segments = getIndentGuideSegments(getIndentGuideLevels(rows, 'repo'), measured(0, 7))
-+    expect(segments).toEqual([
-+      { level: 1, top: 20, bottom: 40 },
-+      { level: 0, top: 10, bottom: 60 }
++  const ancestors = getIndentGuideAncestors(rows, 'repo')
++
++  it('runs one guide per header, from below it to its last row', () => {
++    const segments = getIndentGuideSegments(ancestors, measured(0, 8), new Set())
++    expect(spans(segments)).toEqual([
++      [':work', 10, 70],
++      [':audio', 30, 50],
++      [':asr', 40, 50],
++      [':ana', 60, 70],
++      [':solo', 80, 90]
 +    ])
 +  })
 +
++  it('marks the guides above the active row', () => {
++    const active = new Set(ancestors[4])
++    const segments = getIndentGuideSegments(ancestors, measured(0, 8), active)
++    expect(
++      segments
++        .filter((segment) => segment.active)
++        .map((segment) => segment.key)
++        .sort()
++    ).toEqual([':asr', ':audio', ':work'])
++  })
++
 +  it('never bridges rows that are not measured', () => {
-+    const levels = getIndentGuideLevels(rows, 'repo')
-+    const segments = getIndentGuideSegments(levels, [...measured(1, 2), ...measured(4, 5)])
-+    expect(segments).toEqual([
-+      { level: 0, top: 10, bottom: 30 },
-+      { level: 1, top: 20, bottom: 30 },
-+      { level: 0, top: 40, bottom: 60 }
++    const segments = getIndentGuideSegments(
++      ancestors,
++      [...measured(1, 2), ...measured(5, 6)],
++      new Set()
++    )
++    expect(spans(segments)).toEqual([
++      [':work', 10, 30],
++      [':work', 50, 70],
++      [':ana', 60, 70]
 +    ])
 +  })
 +})
 diff --git a/src/renderer/src/components/sidebar/worktree-list/viewport/indent-guides.ts b/src/renderer/src/components/sidebar/worktree-list/viewport/indent-guides.ts
 new file mode 100644
-index 00000000..11f2cd88
+index 00000000..04d0c57e
 --- /dev/null
 +++ b/src/renderer/src/components/sidebar/worktree-list/viewport/indent-guides.ts
-@@ -0,0 +1,73 @@
-+import type {
-+  GroupHeaderRow,
-+  WorktreeGroupBy
-+} from '../../../../../../shared/sidebar-list/row-types'
+@@ -0,0 +1,82 @@
++import type { WorktreeGroupBy } from '../../../../../../shared/sidebar-list/row-types'
 +import type { RenderRow } from '../listing/render-row'
 +
-+export type IndentGuideSegment = { level: number; top: number; bottom: number }
++export type IndentGuideSegment = {
++  key: string
++  level: number
++  top: number
++  bottom: number
++  active: boolean
++}
 +
 +type MeasuredRow = { index: number; start: number; end: number }
 +
-+function isProjectHierarchyHeader(row: RenderRow, groupBy: WorktreeGroupBy): row is GroupHeaderRow {
-+  return (
-+    groupBy === 'repo' &&
-+    row.type === 'header' &&
-+    (row.repo !== undefined || row.projectGroup !== undefined)
-+  )
-+}
++// Why: notices keep their own fixed padding, so a guide would cross their text.
++const ROWS_WITHOUT_GUIDES = new Set<RenderRow['type']>([
++  'pending-creation',
++  'imported-worktrees-card',
++  'new-external-worktrees-inbox'
++])
 +
 +/**
-+ * How many ancestor levels each row sits under, one guide per level. A header sits at its own depth.
-+ * Folder workspaces under a group sit one level below it; a project's cards keep the project's depth
-+ * because their surface already starts left of the project's icon.
++ * The headers each row sits under, outermost first; one guide per entry. Only project grouping
++ * is a tree: there every header (group, project, Pinned) parents the rows up to the next header at
++ * its depth or shallower.
 + */
-+export function getIndentGuideLevels(
++export function getIndentGuideAncestors(
 +  rows: readonly RenderRow[],
 +  groupBy: WorktreeGroupBy
-+): number[] {
-+  let ownedRowLevels = 0
++): string[][] {
++  if (groupBy !== 'repo') {
++    return rows.map(() => [])
++  }
++  let open: { key: string; depth: number }[] = []
 +  return rows.map((row) => {
-+    if (row.type !== 'host-header' && row.type !== 'header') {
-+      return ownedRowLevels
++    if (row.type === 'host-header') {
++      open = []
++      return []
 +    }
-+    if (!isProjectHierarchyHeader(row, groupBy)) {
-+      ownedRowLevels = 0
-+      return 0
++    if (row.type === 'header') {
++      const depth = row.projectGroupDepth ?? 0
++      open = open.filter((header) => header.depth < depth)
++      const ancestors = open.map((header) => header.key)
++      open = [...open, { key: `${row.hostId ?? ''}:${row.key}`, depth }]
++      return ancestors
 +    }
-+    const depth = row.projectGroupDepth ?? 0
-+    ownedRowLevels = row.repo === undefined ? depth + 1 : depth
-+    return depth
++    return ROWS_WITHOUT_GUIDES.has(row.type) ? [] : open.map((header) => header.key)
 +  })
 +}
 +
-+/** Vertical runs to draw for the measured rows: one per level per unbroken stretch of nested rows. */
++/** Vertical runs for the measured rows: one per header per unbroken stretch of rows under it. */
 +export function getIndentGuideSegments(
-+  levels: readonly number[],
-+  measuredRows: readonly MeasuredRow[]
++  ancestorsByIndex: readonly (readonly string[])[],
++  measuredRows: readonly MeasuredRow[],
++  activeAncestors: ReadonlySet<string>
 +): IndentGuideSegment[] {
 +  const segments: IndentGuideSegment[] = []
 +  const open = new Map<number, IndentGuideSegment>()
 +  let previousIndex: number | null = null
 +  for (const row of measuredRows) {
-+    const rowLevels = levels[row.index] ?? 0
-+    // Why: virtual items skip nothing in order, but a gap means unmeasured rows; never bridge it.
++    const ancestors = ancestorsByIndex[row.index] ?? []
++    // Why: a gap in indices means unmeasured rows between; never bridge it.
 +    const contiguous = previousIndex !== null && row.index === previousIndex + 1
 +    for (const [level, segment] of open) {
-+      if (level >= rowLevels || !contiguous) {
++      if (!contiguous || ancestors[level] !== segment.key) {
 +        segments.push(segment)
 +        open.delete(level)
 +      }
 +    }
-+    for (let level = 0; level < rowLevels; level++) {
++    ancestors.forEach((key, level) => {
 +      const segment = open.get(level)
 +      if (segment) {
 +        segment.bottom = row.end
 +      } else {
-+        open.set(level, { level, top: row.start, bottom: row.end })
++        const active = activeAncestors.has(key)
++        open.set(level, { key, level, top: row.start, bottom: row.end, active })
 +      }
-+    }
++    })
 +    previousIndex = row.index
 +  }
 +  segments.push(...open.values())
 +  return segments
 +}
+diff --git a/src/renderer/src/components/sidebar/worktree-list/viewport/virtual-row-context.ts b/src/renderer/src/components/sidebar/worktree-list/viewport/virtual-row-context.ts
+index 366b582a..f09f0ac7 100644
+--- a/src/renderer/src/components/sidebar/worktree-list/viewport/virtual-row-context.ts
++++ b/src/renderer/src/components/sidebar/worktree-list/viewport/virtual-row-context.ts
+@@ -28,7 +28,6 @@ type BuildArgs = {
+   measureVirtualRowElement: (element: HTMLDivElement | null) => void
+   settings: AppState['settings']
+   projectActions: RepoHeaderProjectActions
+-  newCardStyle: boolean
+   session: WorktreeDragSession
+   runtime: WorktreeDragRuntime
+   primaryActive: ReturnType<typeof usePrimaryActiveWorktreeRow>
+@@ -123,7 +122,6 @@ export function buildWorktreeVirtualRowContext(args: BuildArgs): WorktreeVirtual
+     },
+     folderWorkspace: {
+       groupBy: props.groupBy,
+-      newCardStyle: args.newCardStyle,
+       settings: args.settings,
+       activeWorktreeId: props.activeWorktreeId,
+       activeWorkspaceExecutionHostId: props.activeWorkspaceExecutionHostId,

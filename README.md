@@ -46,11 +46,15 @@ Orca 的插件 API 不能改左侧边栏，插件面板只能放在右侧边栏�
 
 ## 改 Orca 自带的左侧边栏（macOS，可选）
 
-`native-sidebar/` 里有一个补丁，直接改 Orca 自带的左侧边栏：项目组每深一层缩进 18px（一个图标宽，原来只有 10px），每一层再从图标下方拉一条竖向辅助线，一直连到这一层的最后一行。
+`native-sidebar/` 里有一个补丁，直接改 Orca 自带的左侧边栏，按 VS Code 资源管理器的方式排层级：
+
+- 每个子项都比父级往右缩进一格（18px，一个图标宽），工作区卡片也一样，同一个父级下的东西左边对齐。
+- 每个展开的组和项目，都从自己的图标下方拉一条竖线，连到它的最后一行。
+- 当前所在工作区的上级竖线会加深，一眼看出它属于哪个项目、哪个组。
 
 | 原版 | 打补丁后 |
 | --- | --- |
-| <img src="docs/native-sidebar-before.png" width="285" alt="Orca sidebar before: esheep's projects sit almost flush with it"> | <img src="docs/native-sidebar-after.png" width="285" alt="Orca sidebar after: esheep's projects indented one icon, joined by a vertical guide"> |
+| <img src="docs/native-sidebar-before.png" width="285" alt="Orca sidebar before: esheep's projects sit almost flush with it"> | <img src="docs/native-sidebar-after.png" width="285" alt="Orca sidebar after: every child one step right of its parent, guides under groups and projects, the active path darker"> |
 
 ```sh
 ./native-sidebar/patch-orca.sh apply     # 打补丁，然后 Cmd+Q 退出 Orca 再打开
