@@ -1,6 +1,6 @@
 import { assert, test } from 'orca/testing'
 import type { TreeNode } from '../types'
-import { activeGuideKey, containerKeys, focusedWorkspaceId, navigate, pathTo, visibleRows } from './rows'
+import { activeGuideKey, containerKeys, focusedWorkspaceId, navigate, parseColors, pathTo, tintOf, visibleRows } from './rows'
 
 function node(key: string, children: TreeNode[] = [], fields: Partial<TreeNode> = {}): TreeNode {
   return {
@@ -88,4 +88,23 @@ test('pathTo and containerKeys', () => {
   assert.deepEqual(pathTo(tree, (candidate) => candidate.key === 'home'), [])
   assert.equal(pathTo(tree, () => false), null)
   assert.deepEqual(containerKeys(tree), ['work', 'audio'])
+})
+
+test('a coloured row tints its group, and the nearest colour wins', () => {
+  const colors = { work: '#e5534b', audio: '#5b9bd5' }
+  const tints = visibleRows(tree, new Set()).map((row) => [row.node.key, tintOf(row, colors)])
+  assert.deepEqual(tints, [
+    ['work', '#e5534b'],
+    ['audio', '#5b9bd5'],
+    ['asr', '#5b9bd5'],
+    ['tts', '#5b9bd5'],
+    ['ana', '#e5534b'],
+    ['home', null]
+  ])
+})
+
+test('parseColors keeps only #rrggbb values', () => {
+  assert.deepEqual(parseColors({ a: '#A1b2C3', b: 'red', c: 3, d: '#fff;x' }), { a: '#A1b2C3' })
+  assert.deepEqual(parseColors(null), {})
+  assert.deepEqual(parseColors('x'), {})
 })

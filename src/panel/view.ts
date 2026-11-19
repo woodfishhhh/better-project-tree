@@ -1,11 +1,12 @@
 // Draws rows into the tree element. Every label goes in through textContent, never as markup.
 import { icon, kindIcon } from './icons'
-import type { Row } from './rows'
+import { tintOf, type Row } from './rows'
 import { BASE_PADDING, INDENT, guideOffset } from './style'
 
 export interface RowMarks {
   readonly selectedKey: string | null
   readonly currentWorkspaceId: string | null
+  readonly colors: Readonly<Record<string, string>>
   readonly activeGuideKey: string | null
 }
 
@@ -36,6 +37,8 @@ function rowElement(row: Row, marks: RowMarks): HTMLElement {
   if (row.expandable) el.setAttribute('aria-expanded', String(row.expanded))
   el.style.paddingLeft = `${BASE_PADDING + row.depth * INDENT}px`
   el.title = node.path
+  const tint = tintOf(row, marks.colors)
+  if (tint) el.style.setProperty('--tint', tint)
 
   const twistie = element('span', 'twistie')
   if (row.expandable) twistie.appendChild(icon('chevron'))

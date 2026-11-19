@@ -16,7 +16,8 @@ Your Orca projects and workspaces as a VS Code-style explorer tree, with indent 
 - **键盘操作**：↑↓ 移动，← 折叠或跳到上级，→ 展开或进入第一个子项，Enter / 空格 打开，Home / End 跳到首尾。
 - **筛选**：在顶部输入框里输入文字，匹配项连同它们的上级目录都会显示出来。
 - **收起原侧边栏**：工具栏最右边的按钮可以显示或隐藏 Orca 自带的左侧边栏，用这棵树替代它。
-- 折叠状态会保存下来；新建或删除工作区后，树会自动刷新。
+- **背景色**：在任意一行上右键（或选中后按 Shift+F10 / 菜单键），挑一个颜色、用彩色圆点自定义，或清除。文件夹下面的整组会跟着染上同一个底色，子项可以再单独换色。
+- 折叠状态和背景色会保存下来；新建或删除工作区后，树会自动刷新。
 
 ## 安装
 
@@ -35,7 +36,7 @@ Orca 会列出插件要申请的权限，确认后加上 `--approve <指纹>` �
 | `trusted-worker` | worker 调用本机的 `orca` 命令行（`orca repo list`、`orca worktree list`），读出项目名、子工作区和未读状态 |
 | `workspace:read` | 列出工作区，并接收工作区创建、删除、切换的事件 |
 | `workspace:write` | 点击时打开工作区；显示或隐藏左侧边栏 |
-| `storage:own` | 保存哪些节点是折叠的 |
+| `storage:own` | 保存哪些节点是折叠的、各行的背景色 |
 | `notifications:show` | 打开工作区失败时弹出提示 |
 
 如果找不到 `orca` 命令行，插件会退回到插件 API 的 `workspace.list`。这时树照样能显示，但看不到子工作区和未读标记，面板底部会写明这一点。
@@ -91,9 +92,10 @@ orca plugin validate .
 | `src/source.ts` | 读取数据：优先用 `orca` 命令行，失败时退回到 `workspace.list` |
 | `src/parse.ts` | 校验命令行和宿主返回的 JSON |
 | `src/tree.ts` | 纯函数：把项目和工作区列表组装成目录树 |
-| `src/panel/rows.ts` | 纯函数：可见行、筛选、辅助线高亮、键盘导航 |
+| `src/panel/rows.ts` | 纯函数：可见行、筛选、辅助线高亮、键盘导航、背景色继承 |
 | `src/panel/main.ts` | 面板入口：状态、事件、输入 |
 | `src/panel/view.ts`, `style.ts`, `icons.ts` | DOM 渲染、样式、图标 |
+| `src/panel/colorMenu.ts` | 右键的背景色菜单 |
 
 ## License
 

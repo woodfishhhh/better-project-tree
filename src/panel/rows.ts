@@ -12,6 +12,20 @@ export interface Row {
   readonly expanded: boolean
 }
 
+/** A row's background colour: its own, else the nearest coloured row above it, so a folder tints its group. */
+export function tintOf(row: Row, colors: Readonly<Record<string, string>>): string | null {
+  const keys = [row.node.key, ...[...row.ancestors].reverse()]
+  return keys.map((key) => colors[key]).find((color) => color !== undefined) ?? null
+}
+
+/** Stored colours, with anything that is not a #rrggbb value dropped. */
+export function parseColors(stored: unknown): Record<string, string> {
+  if (typeof stored !== 'object' || stored === null) return {}
+  const valid = (entry: [string, unknown]): entry is [string, string] =>
+    typeof entry[1] === 'string' && /^#[0-9a-f]{6}$/i.test(entry[1])
+  return Object.fromEntries(Object.entries(stored).filter(valid))
+}
+
 function matches(node: TreeNode, needle: string): boolean {
   return [node.label, node.detail, node.workspaceName].some((text) => text?.toLowerCase().includes(needle))
 }

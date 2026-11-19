@@ -9,22 +9,27 @@ import {
   containerKeys,
   focusedWorkspaceId,
   navigate,
+  parseColors,
   pathTo,
   visibleRows,
   type FocusedWorkspace,
   type NavKey,
   type Row
 } from './rows'
+import { openColorMenu } from './colorMenu'
 import { CSS } from './style'
 import { renderMessage, renderRows } from './view'
 
 const COLLAPSED_KEY = 'collapsed'
+const COLORS_KEY = 'colors'
 const RELOAD_DEBOUNCE_MS = 400
 
 interface State {
   readonly tree: ProjectTree | null
   readonly error: string | null
   readonly collapsed: ReadonlySet<string>
+  /** Row key → the #rrggbb background colour the user chose for it. */
+  readonly colors: Readonly<Record<string, string>>
   readonly filter: string
   readonly selectedKey: string | null
   readonly currentWorkspaceId: string | null
@@ -36,6 +41,7 @@ let state: State = {
   tree: null,
   error: null,
   collapsed: new Set(),
+  colors: {},
   filter: '',
   selectedKey: null,
   currentWorkspaceId: null,
@@ -105,6 +111,7 @@ function render(): void {
   renderRows(treeEl, rows, {
     selectedKey: state.selectedKey,
     currentWorkspaceId: state.currentWorkspaceId,
+    colors: state.colors,
     activeGuideKey: activeGuideKey(rows, state.selectedKey)
   })
 }
@@ -119,6 +126,25 @@ function setCollapsed(collapsed: ReadonlySet<string>): void {
   orca.storage.set(COLLAPSED_KEY, [...collapsed]).catch((error: unknown) => {
     setState({ error: errorText(error) })
   })
+}
+
+function setColor(key: string, color: string | null): void {
+  const colors = Object.fromEntries(Object.entries(state.colors).filter(([other]) => other !== key))
+  if (color) colors[key] = color
+  setState({ colors })
+  orca.storage.set(COLORS_KEY, colors).catch((error: unknown) => {
+    setState({ error: errorText(error) })
+  })
+}
+
+function showColorMenu(row: Row, rowEl: HTMLElement, at?: { x: number; y: number }): void {
+  setState({ selectedKey: row.node.key })
+  const box = rowEl.getBoundingClientRect()
+  const labels = { menu: t.colorMenu, custom: t.customColor, clear: t.clearColor }
+  const current = state.colors[row.node.key] ?? null
+  openColorMenu(at?.x ?? box.left + 24, at?.y ?? box.bottom, current, labels, (color) =>
+    setColor(row.node.key, color)
+  )
 }
 
 function toggle(key: string, expanded: boolean): void {
@@ -202,6 +228,16 @@ treeEl.addEventListener('click', (event) => {
   activate(row)
 })
 
+treeEl.addEventListener('contextmenu', (event) => {
+  const rowEl = event.target instanceof Element ? event.target.closest<HTMLElement>('.row') : null
+  const row = rows.find((candidate) => candidate.node.key === rowEl?.dataset.key)
+  if (!row || !rowEl) return
+  event.preventDefault()
+  // The ContextMenu key fires this with no pointer position: open the menu under the row instead.
+  const fromKeyboard = event.clientX === 0 && event.clientY === 0
+  showColorMenu(row, rowEl, fromKeyboard ? undefined : { x: event.clientX, y: event.clientY })
+})
+
 const NAV_KEYS: Record<string, NavKey> = {
   ArrowUp: 'up',
   ArrowDown: 'down',
@@ -218,6 +254,15 @@ treeEl.addEventListener('keydown', (event) => {
     const result = navigate(rows, state.selectedKey, nav)
     setState({ selectedKey: result.selectedKey })
     if (result.toggle) toggle(result.toggle.key, result.toggle.expanded)
+    return
+  }
+  if (event.key === 'F10' && event.shiftKey) {
+    const row = rows.find((candidate) => candidate.node.key === state.selectedKey)
+    const rowEl = row ? treeEl.querySelector<HTMLElement>(`[data-key="${globalThis.CSS.escape(row.node.key)}"]`) : null
+    if (row && rowEl) {
+      event.preventDefault()
+      showColorMenu(row, rowEl)
+    }
     return
   }
   if (event.key === 'Enter' || event.key === ' ') {
@@ -259,7 +304,8 @@ async function start(): Promise<void> {
   try {
     const stored = await orca.storage.get(COLLAPSED_KEY)
     const keys = Array.isArray(stored) ? stored.filter((key): key is string => typeof key === 'string') : []
-    state = { ...state, collapsed: new Set(keys) }
+    const colors = parseColors(await orca.storage.get(COLORS_KEY))
+    state = { ...state, collapsed: new Set(keys), colors }
   } catch (error: unknown) {
     state = { ...state, error: errorText(error) }
   }

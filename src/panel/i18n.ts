@@ -12,7 +12,10 @@ const EN = {
   loadFailed: 'Could not load projects',
   openFailed: 'Could not open the workspace',
   hostSource: 'Limited view: the orca CLI was not reachable, so child worktrees and unread marks are hidden.',
-  tree: 'Projects'
+  tree: 'Projects',
+  colorMenu: 'Background colour',
+  customColor: 'Custom colour',
+  clearColor: 'No colour'
 }
 
 type Strings = typeof EN
@@ -29,7 +32,10 @@ const ZH: Strings = {
   loadFailed: '项目加载失败',
   openFailed: '打开工作区失败',
   hostSource: '精简视图：没连上 orca 命令行，子工作区和未读标记不显示。',
-  tree: '项目'
+  tree: '项目',
+  colorMenu: '背景色',
+  customColor: '自定义颜色',
+  clearColor: '清除颜色'
 }
 
 export function strings(locale: string): Strings {
